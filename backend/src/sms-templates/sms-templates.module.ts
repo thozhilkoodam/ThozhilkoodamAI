@@ -1,0 +1,10 @@
+import { Module } from '@nestjs/common'
+import { SmsTemplatesController } from './sms-templates.controller'
+import { SmsTemplatesService } from './sms-templates.service'
+
+@Module({
+  controllers: [SmsTemplatesController],
+  providers: [SmsTemplatesService],
+  exports: [SmsTemplatesService],
+})
+export class SmsTemplatesModule {}

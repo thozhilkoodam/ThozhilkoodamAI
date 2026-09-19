@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && request.auth.token.role == role;
+    }
+
+    function isAdminOrSuperAdmin() {
+      return hasRole('admin') || hasRole('super_admin');
+    }
+
+    function isEmployer() {
+      return hasRole('msme_client') || hasRole('recruitment_agency') || hasRole('hr_recruiter');
+    }
+
+    function isCompanyMember(companyId) {
+      return isAuthenticated() && (
+        request.auth.token.companyId == companyId ||
+        isAdminOrSuperAdmin()
+      );
+    }
+
+    function isCompanyAdmin(companyId) {
+      return isAuthenticated() && (
+        (request.auth.token.companyId == companyId && request.auth.token.teamRole == 'admin') ||
+        isAdminOrSuperAdmin()
+      );
+    }
+
+    // Candidate documents & profiles
+    match /candidates/{candidateId} {
+      allow read: if isOwner(candidateId) || isEmployer() || isAdminOrSuperAdmin();
+      allow create, update: if isOwner(candidateId) || isAdminOrSuperAdmin();
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+    match /candidate_profiles/{userId} {
+      allow read: if isOwner(userId) || isEmployer() || isAdminOrSuperAdmin();
+      allow create, update: if isOwner(userId);
+      allow delete: if isAdminOrSuperAdmin();
+    }
+
+    // Company & Company Membership documents
+    match /companies/{companyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isCompanyMember(companyId) || isAdminOrSuperAdmin();
+      allow delete: if isAdminOrSuperAdmin();
+
+      match /team_members/{memberId} {
+        allow read: if isCompanyMember(companyId);
+        allow write: if isCompanyAdmin(companyId);
+      }
+    }
+
+    match /company_memberships/{membershipId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isCompanyMember(resource.data.companyId)
+      );
+      allow create, update, delete: if isCompanyAdmin(request.resource.data.companyId) || isAdminOrSuperAdmin();
+    }
+  }
+}
